@@ -511,7 +511,8 @@ def assemble(project: Path, m: dict | None = None, log=lambda s: None) -> dict:
             # single variable-frame-rate source (a phone screen recording) gives
             # the group file a timeline xfade's absolute `offset` cannot be read
             # against — it then emits the first group alone and exits 0.
-            chain = "".join(f"[{k}:v]setpts=PTS-STARTPTS[g{k}];"
+            # fps= too: ffmpeg 7's xfade refuses inputs with no constant rate.
+            chain = "".join(f"[{k}:v]setpts=PTS-STARTPTS,fps={m.get('fps', 60)}[g{k}];"
                             for k in range(len(gfiles)))
             prev, acc = "[g0]", gdurs[0]
             for k in range(1, len(gfiles)):
