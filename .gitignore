@@ -1,0 +1,17 @@
+# runtime state: the project registry, preview proxies, take measurements
+projects.json
+data/
+.env
+
+# local backups (file.before-x.py) and caches
+*.before-*
+*.after-*
+__pycache__/
+*.pyc
+node_modules/
+
+# machine-local, not part of the app
+bin/
+demo/
+vo_cpu.py
+.worktrees/
