@@ -26,7 +26,8 @@ staying on your computer.
   renders them.
 - **Publish.** Exactly what Instagram will receive for each reel, and a queue
   that posts it at a time you pick. Trial reels and "also share to feed" are
-  supported. Without a token it is a dry run and nothing leaves your computer.
+  supported; trials post through Instagram Login, a second token pasted in the
+  same box. Without a token it is a dry run and nothing leaves your computer.
 - **Comments.** Unanswered comments across recent reels, each with a public
   reply and a DM ready to send.
 

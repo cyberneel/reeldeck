@@ -24,6 +24,13 @@ makes one for the few minutes Instagram processes the upload: a loopback server
 that answers a single random path, behind a cloudflared quick tunnel. If that
 fails, thumb_offset (a frame of the cut) is the cover.
 
+Trial reels go another way. The Facebook Login route above takes trial_params and
+posts a normal reel anyway (three tries, Nov 2026), so a trial goes through
+Instagram Login instead: graph.instagram.com, its own token (a second paste box,
+~/.config/reeldeck/instagram-login.json, 600, renewed weekly by ig_refresh), and
+the cut as video_url through the same tunnel, since that host has no resumable
+upload. The container remembers which way it went ("via": "ig").
+
     python3 publish.py        # self-check against a fake Graph API, no network
 """
 from __future__ import annotations
@@ -49,6 +56,9 @@ import pipeline
 import projects
 
 TOKEN_FILE = Path.home() / ".config" / "reeldeck" / "instagram.json"
+IG_TOKEN_FILE = Path.home() / ".config" / "reeldeck" / "instagram-login.json"   # trials only
+IGHOST = "https://graph.instagram.com"
+IGRAPH = f"{IGHOST}/v25.0"
 V = "v24.0"   # ponytail: pinned; Graph versions live ~2 years, bump when Meta deprecates it
 GRAPH = f"https://graph.facebook.com/{V}"
 RUPLOAD = f"https://rupload.facebook.com/ig-api-upload/{V}"
@@ -175,8 +185,10 @@ def request(post: dict) -> dict:
         r["user_tags"] = json.dumps([{"username": u} for u in s["user_tags"]])
     if s["location_id"]:
         r["location_id"] = s["location_id"]
-    if s["trial"]:
+    if s["trial"]:   # Instagram Login: it fetches the cut from a link, and a trial has no feed choice
         r["trial_params"] = json.dumps({"graduation_strategy": s["trial"]})
+        del r["upload_type"], r["share_to_feed"]
+        r["video_url"] = "<a temporary public link to the upload copy, made at upload>"
     return r
 
 
@@ -205,6 +217,8 @@ def problems(post: dict) -> list[str]:
             out.append("cover offset is past the end of the cut")
     if post.get("cover_mb", 0) > 8:
         out.append(f"cover jpg is {post['cover_mb']} MB (max 8)")
+    if s["trial"] and post.get("status") != "published" and not ig_token():
+        out.append("a trial reel goes out through Instagram Login: paste that token first (Instagram token, below the account)")
     return out
 
 
@@ -370,24 +384,44 @@ def stage_now(pid: str) -> dict:
 
 
 # ---------- the Graph API ----------
-def token() -> dict | None:
-    if not TOKEN_FILE.is_file():
+def token(f: Path | None = None) -> dict | None:
+    f = f or TOKEN_FILE
+    if not f.is_file():
         return None
     try:
-        t = json.loads(TOKEN_FILE.read_text())
+        t = json.loads(f.read_text())
     except ValueError:
         return None
     gone = t.get("expires") and t["expires"] < time.time()
     return t if t.get("ig_user_id") and t.get("access_token") and not gone else None
 
 
+def ig_token() -> dict | None:
+    """The Instagram Login token, for trials. Same shape as token()'s."""
+    return token(IG_TOKEN_FILE)
+
+
+def _auth(via: str | None) -> dict | None:
+    return ig_token() if via == "ig" else token()
+
+
+def _write_secret(f: Path, obj: dict) -> None:
+    f.parent.mkdir(parents=True, exist_ok=True)
+    tmp = f.with_name(f.name + ".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.fchmod(fd, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        json.dump(obj, fh)
+    tmp.replace(f)
+
+
 def account() -> dict:
     """Token state for the tab, never the token itself."""
     if not TOKEN_FILE.is_file():
-        return {"token": False, "note": "no token yet: dry run, nothing leaves this machine"}
+        return {"token": False, "note": "no token yet: dry run, nothing leaves this machine", **ig_account()}
     t = token()
     if not t:
-        return {"token": False, "note": "the saved token is expired or incomplete: paste a fresh one"}
+        return {"token": False, "note": "the saved token is expired or incomplete: paste a fresh one", **ig_account()}
     note = "@" + (t.get("username") or t["ig_user_id"])
     if t.get("expires"):
         note += time.strftime(" · token good till %d %b", time.localtime(t["expires"]))
@@ -395,7 +429,16 @@ def account() -> dict:
             note += ": paste a fresh one soon"
     if TOKEN_FILE.stat().st_mode & 0o077:
         note += " · chmod 600 the token file"
-    return {"token": True, "note": note}
+    return {"token": True, "note": note, **ig_account()}
+
+
+def ig_account() -> dict:
+    t = ig_token()
+    if not t:
+        return {"ig": False, "ig_note": "trial reels: no Instagram Login token yet" if not IG_TOKEN_FILE.is_file()
+                else "trial reels: the Instagram Login token expired: paste a fresh one"}
+    return {"ig": True, "ig_note": f"trial reels: @{t['username'] or t['ig_user_id']} via Instagram Login"
+            + time.strftime(" · token good till %d %b, renewed weekly", time.localtime(t["expires"]))}
 
 
 def save_token(tok: str) -> dict:
@@ -427,22 +470,49 @@ def save_token(tok: str) -> dict:
         tok = page["access_token"]
         info = debug(tok)
     ends = [t for t in (info.get("expires_at"), info.get("data_access_expires_at")) if t]
-    TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = TOKEN_FILE.with_name(TOKEN_FILE.name + ".tmp")
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    os.fchmod(fd, 0o600)
-    with os.fdopen(fd, "w") as fh:
-        json.dump({"access_token": tok, "ig_user_id": ig["id"], "username": ig.get("username", ""),
-                   "expires": min(ends) if ends else 0, "saved": round(time.time())}, fh)
-    tmp.replace(TOKEN_FILE)
+    _write_secret(TOKEN_FILE, {"access_token": tok, "ig_user_id": ig["id"], "username": ig.get("username", ""),
+                               "expires": min(ends) if ends else 0, "saved": round(time.time())})
     _seen.clear()   # a new token sees comments differently (names): forget the old view
     return account()
 
 
+def save_ig_token(tok: str) -> dict:
+    """The second paste box: an Instagram Login token (App Dashboard → Instagram →
+    API setup with Instagram business login → Generate token, good for 60 days).
+    Instagram says whose it is; it must be the account the reels post as."""
+    tok = str(tok or "").strip()
+    if not re.fullmatch(r"[\w-]{40,1000}", tok):
+        raise ValueError("that doesn't look like an Instagram access token")
+    me = _graph("GET", f"{IGRAPH}/me?fields=user_id,username", tok=tok)
+    fb = token()
+    if fb and fb.get("username") and me.get("username") != fb["username"]:
+        raise ValueError(f"that token is for @{me.get('username')}, but reels post as @{fb['username']}")
+    now = round(time.time())
+    # ponytail: 60 days assumed (Meta's figure for dashboard tokens); the first weekly refresh corrects it
+    _write_secret(IG_TOKEN_FILE, {"access_token": tok, "ig_user_id": str(me["user_id"]), "username": me.get("username", ""),
+                                  "expires": now + 60 * 86400, "saved": now})
+    return account()
+
+
+def ig_refresh(now: float | None = None) -> None:
+    """Instagram Login tokens last 60 days and can be renewed for another 60 once
+    a day old: renew weekly, retry a failure daily."""
+    t, now = ig_token(), now or time.time()
+    if not t or now - t["saved"] < 7 * 86400 or now - t.get("tried", 0) < 86400:
+        return
+    _write_secret(IG_TOKEN_FILE, {**t, "tried": round(now)})
+    # the one call that takes the token in the URL, as Meta documents it; _graph keeps it out of logs
+    j = _graph("GET", f"{IGHOST}/refresh_access_token?" + urllib.parse.urlencode(
+        {"grant_type": "ig_refresh_token", "access_token": t["access_token"]}), tok=t["access_token"])
+    _write_secret(IG_TOKEN_FILE, {**t, "access_token": j["access_token"], "saved": round(now),
+                                  "expires": round(now + int(j.get("expires_in") or 60 * 86400))})
+
+
 def _graph(method: str, url: str, data: dict | None = None, headers: dict | None = None,
            body=None, tok: str | None = None) -> dict:
-    tok = tok or token()["access_token"]
-    h = {"Authorization": f"OAuth {tok}", **(headers or {})}
+    ig = url.startswith(IGHOST)
+    tok = tok or _auth("ig" if ig else None)["access_token"]
+    h = {"Authorization": f"{'Bearer' if ig else 'OAuth'} {tok}", **(headers or {})}
     if data is not None:
         body = urllib.parse.urlencode(data).encode()
     req = urllib.request.Request(url, data=body, headers=h, method=method)
@@ -831,22 +901,26 @@ def upload_copy(d: Path, video: str) -> Path:
 COVERS: dict = {}   # project dir -> close() for its cover's public link
 
 
-def _expose(d: Path, jpg: Path) -> str:
-    """A public https URL for one jpg, up until the container is processed
-    (or an hour, whichever is first). Nothing else on this machine is exposed:
-    the tunnel reaches a loopback server that answers one random path."""
-    body, name = jpg.read_bytes(), "/" + secrets.token_hex(16) + ".jpg"
+def _expose(d: Path, *files: Path) -> list[str]:
+    """A public https URL for each file (the cover jpg, and a trial's mp4), up
+    until the container is processed (or an hour, whichever is first). Nothing
+    else on this machine is exposed: the tunnel reaches a loopback server that
+    answers one random path per file."""
+    serve = {"/" + secrets.token_hex(16) + f.suffix: f for f in files}
+    names = list(serve)
+    name, body = names[0], files[0].read_bytes()   # the one fetched to check the tunnel
 
     class One(BaseHTTPRequestHandler):
         def do_GET(self):
-            if self.path != name:
+            if self.path not in serve:
                 return self.send_error(404)
+            f = serve[self.path]
             self.send_response(200)
-            self.send_header("Content-Type", "image/jpeg")
-            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Content-Type", "video/mp4" if f.suffix == ".mp4" else "image/jpeg")
+            self.send_header("Content-Length", str(f.stat().st_size))
             self.end_headers()
             if self.command == "GET":
-                self.wfile.write(body)
+                self.wfile.write(f.read_bytes())
         do_HEAD = do_GET
 
         def log_message(self, *a):
@@ -878,7 +952,7 @@ def _expose(d: Path, jpg: Path) -> str:
                 req = urllib.request.Request(m.group(0) + name, headers={"User-Agent": "reeldeck"})
                 with urllib.request.urlopen(req, timeout=10) as r:
                     if r.read() == body:
-                        return m.group(0) + name
+                        return [m.group(0) + n for n in names]
             except OSError:
                 pass
         time.sleep(3)
@@ -920,22 +994,27 @@ def _stage(row: dict) -> None:
     try:
         p = view(row)
         f = upload_copy(d, p["video"])
-        t = token()
+        req = dict(p["request"])
+        via = "ig" if "video_url" in req else None   # a trial: Instagram Login, never the route that drops it
+        t = _auth(via)
         if not t:
             return _finish(d, status=back, upload_of=p["video"],
                            msg=f"dry run: upload copy ready ({f.stat().st_size / 1e6:.1f} MB); no token, nothing sent")
-        req = dict(p["request"])
-        if "cover_url" in req:
+        links = {k: v for k, v in (("cover_url", d / p["settings"]["cover"]), ("video_url", f)) if k in req}
+        if links:
             try:
-                req["cover_url"] = _expose(d, d / p["settings"]["cover"])
+                req.update(zip(links, _expose(d, *links.values())))
             except Exception as e:
+                if via:
+                    raise RuntimeError(f"no public link for the upload copy ({e})") from None
                 del req["cover_url"]
                 _finish(d, msg=f"no public link for the cover ({e}); the frame at {req['thumb_offset']} ms is the cover")
-        c = _graph("POST", f"{GRAPH}/{t['ig_user_id']}/media", data=req)
-        _graph("POST", f"{RUPLOAD}/{c['id']}", body=f.read_bytes(),
-               headers={"offset": "0", "file_size": str(f.stat().st_size)})
-        _finish(d, status="processing", upload_of=p["video"], container={"id": c["id"], "at": time.time()},
-                msg=f"uploaded {f.stat().st_size / 1e6:.1f} MB, Instagram is processing it (nothing public)")
+        c = _graph("POST", f"{IGRAPH if via else GRAPH}/{t['ig_user_id']}/media", data=req)
+        if not via:
+            _graph("POST", f"{RUPLOAD}/{c['id']}", body=f.read_bytes(),
+                   headers={"offset": "0", "file_size": str(f.stat().st_size)})
+        _finish(d, status="processing", upload_of=p["video"], container={"id": c["id"], "at": time.time(), "via": via},
+                msg=f"{'linked' if via else 'uploaded'} {f.stat().st_size / 1e6:.1f} MB, Instagram is processing it (nothing public)")
     except Exception as e:
         _close(d)
         # a scheduled reel is staged again by the next tick: say so, or the line reads as a dead end
@@ -945,7 +1024,7 @@ def _stage(row: dict) -> None:
 
 
 def _poll(d: Path, rec: dict) -> None:
-    j = _graph("GET", f"{GRAPH}/{rec['container']['id']}?fields=status_code,status")
+    j = _graph("GET", f"{_base(rec)}/{rec['container']['id']}?fields=status_code,status")
     code = j.get("status_code")
     if code in ("FINISHED", "ERROR", "EXPIRED"):
         _close(d)   # Meta has the cover by now, or never will
@@ -956,19 +1035,25 @@ def _poll(d: Path, rec: dict) -> None:
                 msg=f"processing {code.lower()}: {j.get('status', '')}; restaging" if rec.get("slot") else f"processing {code.lower()}")
 
 
+def _base(rec: dict) -> str:
+    """The host a container was made on is the one that polls and publishes it."""
+    return IGRAPH if (rec.get("container") or {}).get("via") == "ig" else GRAPH
+
+
 def _publish(d: Path) -> None:
     rec = _claim(d, ("staged",), "publishing")
     if rec is None:
         return
-    t = token()
+    via = rec["container"].get("via")
+    t = _auth(via)
     try:
-        j = _graph("POST", f"{GRAPH}/{t['ig_user_id']}/media_publish", data={"creation_id": rec["container"]["id"]})
+        j = _graph("POST", f"{_base(rec)}/{t['ig_user_id']}/media_publish", data={"creation_id": rec["container"]["id"]})
     except Exception as e:
         # never retried by itself: a reply lost after Meta posted would post it twice
         return _finish(d, status="failed", msg=f"publish failed: {e}. Check Instagram before rescheduling")
     link = ""
     try:
-        link = _graph("GET", f"{GRAPH}/{j['id']}?fields=permalink").get("permalink", "")
+        link = _graph("GET", f"{_base(rec)}/{j['id']}?fields=permalink").get("permalink", "")
     except Exception:
         pass
     _finish(d, status="published", media_id=j["id"], permalink=link, published_at=time.time(),
@@ -985,13 +1070,15 @@ def tick(now: float | None = None) -> None:
             continue
         rec = _rec(d)
         slot, st = rec.get("slot"), rec.get("status")
+        via = (rec.get("container") or {}).get("via") or ("ig" if (rec.get("settings") or {}).get("trial") else None)
         try:
             if slot and st in ("queued", "processing", "staged") and now > slot + LATE:
                 _finish(d, status="missed", container=None, msg="missed the slot by over an hour; not posted")
-            elif not token():
+            elif not _auth(via):
                 if slot and st == "queued" and now >= slot - STAGE_AHEAD and \
                         not rec.get("log", [[0, ""]])[-1][1].startswith("waiting"):
-                    _finish(d, msg="waiting for the Instagram token; nothing will post without it")
+                    _finish(d, msg="waiting for the Instagram " + ("Login token (a trial needs it)" if via else "token")
+                            + "; nothing will post without it")
             elif st == "processing":
                 _poll(d, rec)
             elif slot and st == "queued" and now >= slot - STAGE_AHEAD:
@@ -1025,6 +1112,10 @@ def start() -> None:
                 auto_tick()
             except Exception as e:
                 print("auto tick:", e, flush=True)
+            try:
+                ig_refresh()
+            except Exception as e:
+                print("instagram login refresh:", e, flush=True)
             time.sleep(60)
     threading.Thread(target=loop, daemon=True).start()
 
@@ -1045,7 +1136,7 @@ if __name__ == "__main__":
     (d / CAPTION).write_text("hello @friend #one #two\n")
     pipeline._run(["ffmpeg", "-v", "error", "-i", str(d / "t.mp4"), "-frames:v", "1", str(d / "t.jpg")])
     projects.list_projects = lambda: [{"id": "t", "name": "t", "dir": str(d), "missing": False}]
-    TOKEN_FILE = tmp / "instagram.json"
+    TOKEN_FILE, IG_TOKEN_FILE = tmp / "instagram.json", tmp / "instagram-login.json"
 
     p = view({"id": "t", "name": "t", "dir": str(d)})
     assert p["settings"]["thumb_offset"] == 2500 and p["tags"] == {"hashtags": ["#one", "#two"], "mentions": ["@friend"]}
@@ -1129,10 +1220,10 @@ if __name__ == "__main__":
 
     calls, opened = [], []
 
-    def expose(d_, jpg):
-        opened.append(jpg.name)
+    def expose(d_, *files):
+        opened.extend(f.name for f in files)
         COVERS[str(d_)] = lambda: opened.append("closed")
-        return "https://x.trycloudflare.com/c.jpg"
+        return [f"https://x.trycloudflare.com/{f.name}" for f in files]
     _expose = expose
 
     def fake(method, url, data=None, headers=None, body=None, tok=None):
@@ -1153,7 +1244,7 @@ if __name__ == "__main__":
     tick(slot - STAGE_AHEAD + 1)
     assert _rec(d)["status"] == "processing" and len(calls) == 2  # container + bytes
     assert calls[0][2]["thumb_offset"] == 2500 and calls[0][2]["media_type"] == "REELS"
-    assert calls[0][2]["cover_url"] == "https://x.trycloudflare.com/c.jpg" and opened == ["t.jpg"]
+    assert calls[0][2]["cover_url"] == "https://x.trycloudflare.com/t.jpg" and opened == ["t.jpg"]
     tick(slot - 60)
     assert _rec(d)["status"] == "staged" and opened[-1] == "closed" and not COVERS  # link down once processed
     tick(slot - 30)
@@ -1377,5 +1468,79 @@ if __name__ == "__main__":
     assert _rec(d)["status"] == "queued" and "container" not in _rec(d)
     tick(slot + LATE + 5)
     assert _rec(d)["status"] == "missed"
+
+    # a trial goes through Instagram Login, never the Facebook route that posts it as a normal reel
+    _save(d, {"settings": {"trial": "MANUAL"}})
+    p = view(_row("t"))
+    r = p["request"]
+    assert json.loads(r["trial_params"]) == {"graduation_strategy": "MANUAL"} and "video_url" in r
+    assert "share_to_feed" not in r and "upload_type" not in r and "cover_url" in r
+    assert "Instagram Login" in p["problems"][-1]                       # no IG Login token: Schedule refuses
+    try:
+        schedule("t", 0)
+        raise AssertionError("scheduled a trial without the Instagram Login token")
+    except ValueError:
+        pass
+    _save(d, {"settings": {"trial": "MANUAL"}, "status": "queued", "slot": slot})
+    n = len(calls)
+    tick(slot - 60)
+    assert len(calls) == n and "Login token" in _rec(d)["log"][-1][1]  # it waits, nothing goes the old way
+    # the second paste box: Instagram says whose token it is, and it must be the account reels post as
+    me = {"user_id": 1784, "username": "other"}
+    _graph = lambda method, url, tok=None, **k: (calls.append(url), me)[1]
+    try:
+        save_ig_token("IGAA" + "y" * 60)
+        raise AssertionError("saved another account's token")
+    except ValueError as e:
+        assert "@other" in str(e) and not IG_TOKEN_FILE.exists()
+    me["username"] = "me"
+    a = save_ig_token("IGAA" + "y" * 60)
+    assert a["ig"] and "@me via Instagram Login" in a["ig_note"] and "IGAA" not in json.dumps(a)
+    assert IG_TOKEN_FILE.stat().st_mode & 0o777 == 0o600 and ig_token()["ig_user_id"] == "1784"
+    assert calls[-1] == f"{IGRAPH}/me?fields=user_id,username"
+    assert token()["access_token"] == "PAGE1"                          # the Facebook Login token is untouched
+    # stage, poll, publish: all on graph.instagram.com, the cut as a link, no resumable upload
+    seen, opened[:] = [], []
+
+    def igapi(method, url, data=None, headers=None, body=None, tok=None):
+        seen.append((method, url, data, tok or _auth("ig" if url.startswith(IGHOST) else None)["access_token"]))
+        return fake(method, url, data)
+    _graph, _expose = igapi, expose
+    _save(d, {"settings": {"trial": "MANUAL"}, "status": "queued", "slot": slot})
+    tick(slot - 60)
+    assert _rec(d)["status"] == "processing" and _rec(d)["container"]["via"] == "ig" and len(seen) == 1
+    m, url, data, tok = seen[0]
+    assert url == f"{IGRAPH}/1784/media" and tok.startswith("IGAA") and "rupload" not in json.dumps(seen)
+    assert data["video_url"] == "https://x.trycloudflare.com/ig-upload.mp4" and data["cover_url"].endswith("t.jpg")
+    assert json.loads(data["trial_params"]) == {"graduation_strategy": "MANUAL"} and "share_to_feed" not in data
+    assert opened == ["t.jpg", "ig-upload.mp4"]
+    tick(slot - 30)
+    tick(slot + 1)
+    tick(slot + 61)
+    assert _rec(d)["status"] == "published" and all(u.startswith(IGRAPH) and t.startswith("IGAA") for _, u, _, t in seen)
+    assert [u for _, u, _, _ in seen if u.endswith("media_publish")] == [f"{IGRAPH}/1784/media_publish"]
+    # no tunnel, no trial: it fails rather than dropping the video link
+    _save(d, {"settings": {"trial": "MANUAL"}, "status": "queued", "slot": time.time() + 60})
+    _expose = lambda *a: (_ for _ in ()).throw(RuntimeError("no tunnel"))
+    _stage(_row("t"))
+    assert _rec(d)["status"] == "queued" and "no public link for the upload copy" in _rec(d)["log"][-1][1]
+    # the token renews weekly, retries a failure daily, and only the new one is kept
+    t0 = ig_token()
+    seen.clear()
+    _graph = lambda method, url, tok=None, **k: (seen.append(url), {"access_token": "IGAA" + "z" * 60, "expires_in": 5183944})[1]
+    ig_refresh(t0["saved"] + 6 * 86400)
+    assert not seen
+    ig_refresh(t0["saved"] + 8 * 86400)
+    assert seen[0].startswith(f"{IGHOST}/refresh_access_token?grant_type=ig_refresh_token&access_token=IGAA")
+    t1 = ig_token()
+    assert t1["access_token"] == "IGAA" + "z" * 60 and t1["expires"] == t0["saved"] + 8 * 86400 + 5183944
+    _graph = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("400: expired"))
+    for dt in (15, 15.5):
+        try:
+            ig_refresh(t1["saved"] + dt * 86400)
+            assert dt == 15.5, "a failed refresh was retried within the day"
+        except RuntimeError:
+            assert dt == 15
+    assert ig_token()["access_token"] == t1["access_token"]
     shutil.rmtree(tmp)
     print("publish: ok")

@@ -729,6 +729,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/publish/token":   # the tab's paste box; the token is never sent back
             return self._pub(publish.save_token, self._body().get("token", ""))
+        if path == "/api/publish/igtoken":   # the Instagram Login token, for trial reels; never sent back either
+            return self._pub(publish.save_ig_token, self._body().get("token", ""))
         m = re.match(r"^/api/publish/([^/]+)/(schedule|unschedule|stage)$", path)
         if m:
             pid, act = m.groups()

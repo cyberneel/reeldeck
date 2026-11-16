@@ -96,6 +96,7 @@ export const api = {
   publishEdit: (pid, body) => req("PUT", `/api/publish/${pid}`, body),
   publishAct: (pid, act, body) => req("POST", `/api/publish/${pid}/${act}`, body),
   publishToken: (token) => req("POST", "/api/publish/token", { token }),
+  publishIgToken: (token) => req("POST", "/api/publish/igtoken", { token }),
   // the Comments tab: what's unanswered on Instagram, and a public reply under one comment
   // how: "" asks Instagram, "fresh" distrusts the server's memory, "seen" is that memory alone
   comments: (how) => req("GET", "/api/comments" + (how ? `?${how}=1` : "")),

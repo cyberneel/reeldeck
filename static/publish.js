@@ -38,6 +38,16 @@ export function mount(el) {
       </ol>
       <div class="row"><input type="password" id="pubTok" autocomplete="off" placeholder="EAA…" class="grow">
         <button data-a="token" class="go">Save token</button></div>
+      <p class="hint"><b>Trial reels</b> post through Instagram Login, which needs a second token (the one above posts them as normal reels):</p>
+      <ol class="hint">
+        <li><a href="https://developers.facebook.com/apps/" target="_blank">Meta app</a> → Add product → <b>Instagram</b> →
+          API setup with Instagram business login.</li>
+        <li>Add the Instagram account (App roles → Roles → Instagram Testers if it asks, then accept the invite in Instagram).</li>
+        <li><b>Generate token</b> next to the account, allow instagram_business_basic and instagram_business_content_publish (lasts 60 days; reeldeck renews it weekly).</li>
+        <li>Paste it here. It must be the same account; it's saved to ~/.config/reeldeck/instagram-login.json (600).</li>
+      </ol>
+      <div class="row"><input type="password" id="pubIgTok" autocomplete="off" placeholder="IG…" class="grow">
+        <button data-a="igtoken" class="go">Save trial token</button></div>
     </details>
     <div id="pubList"></div>`;
   root.addEventListener("input", onInput);
@@ -72,6 +82,7 @@ function head() {
     <div class="row">
       ${a.token ? `<span class="badge g">connected</span>` : `<span class="badge o">dry run</span>`}
       <span class="stat">${esc(a.note || (quota ? `${quota.used ?? "?"}/${quota.total ?? 100} posts in the last 24 h` : ""))}</span>
+      <span class="stat">${esc(a.ig_note || "")}</span>
     </div>
     <div class="hint">Only reels set to ready (the picker by the timeline's zoom) show here. Scheduling is the approval: a reel with a time posts publicly then, staged two hours
       ahead (nothing is public until the slot). Editing a staged reel drops its upload. The API takes no
@@ -253,15 +264,16 @@ async function onClick(e) {
     return;
   }
   const b = e.target.closest("[data-a]");
-  if (b?.dataset.a === "token") {
-    const box = root.querySelector("#pubTok");
+  if (b?.dataset.a === "token" || b?.dataset.a === "igtoken") {
+    const ig = b.dataset.a === "igtoken";
+    const box = root.querySelector(ig ? "#pubIgTok" : "#pubTok");
     b.disabled = true;
-    const r = await api.publishToken(box.value);
+    const r = await (ig ? api.publishIgToken : api.publishToken)(box.value);
     b.disabled = false;
     if (r.error) { toast(r.error, "error"); return; }
     box.value = "";
     root.querySelector("#pubToken").open = false;
-    toast(`token saved · ${r.note}`);
+    toast(`token saved · ${ig ? r.ig_note : r.note}`);
     quota = null;
     return shown();
   }

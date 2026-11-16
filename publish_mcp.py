@@ -53,7 +53,7 @@ TOOLS = [
      "description": "Edit a reel's caption (written to its share-copy.txt), cut, or settings: share_to_feed, "
                     "cover (a .jpg in the project, sent as cover_url; '' = use the frame at thumb_offset), "
                     "thumb_offset (ms), audio_name, collaborators (≤3), user_tags, location_id, "
-                    "trial ('' | MANUAL | SS_PERFORMANCE). Editing a staged reel drops its upload.",
+                    "trial ('' | MANUAL | SS_PERFORMANCE; a trial needs the Instagram Login token from the tab). Editing a staged reel drops its upload.",
      "inputSchema": {"type": "object", "properties": {
          "pid": PID, "caption": {"type": "string"}, "video": {"type": "string"},
          "settings": {"type": "object"}}, "required": ["pid"]}},
