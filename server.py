@@ -851,6 +851,8 @@ def tailnet_ip(wait: int = 20) -> str:
 
 if __name__ == "__main__":
     import sys
+    if os.environ.get("PUBLIK_SELF_TEST"):   # builder check: prints publik's self-test line, then exits
+        ai.publik.ensure_signed_in()
     # backward compat: `server.py <dir>` auto-registers that project instead of
     # locking the whole server onto it, then starts normally
     if len(sys.argv) > 1:
