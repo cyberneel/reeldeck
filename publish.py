@@ -5,7 +5,7 @@ One record per reel, `publish.json` at the project root, beside the files it
 points at (the cut, the cover jpg). The caption itself stays in share-copy.txt,
 the file every reel already delivers, so there is never a second copy to drift.
 
-The Instagram API has no drafts and no scheduling (../instagram-reel-posting.md),
+The Instagram API has no drafts and no scheduling,
 so reeldeck is the queue. A reel with a `slot` is approved to go public then:
 the scheduler stages it STAGE_AHEAD early (container + resumable upload, nothing
 public) and runs media_publish at the slot. Setting a slot is the approval, and
