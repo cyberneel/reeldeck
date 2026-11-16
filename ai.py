@@ -11,7 +11,7 @@ Where the words come from is the person's choice (Settings → AI):
   claude  dev mode: the local `claude` CLI, so hacking on ReelDeck needs no key.
 
 REELDECK_PUBLIK=off skips the publik gate entirely (development, or a self-host
-that will never use publik). Keys stay in this process: the browser only ever
+that will never use publik), and so does a build with no publik app token. Keys stay in this process: the browser only ever
 sees which provider is active, never a key.
 
     python3 ai.py      # self-check against a fake OpenAI-compatible server, no network
@@ -31,7 +31,9 @@ from pathlib import Path
 import publik
 
 CONFIG = Path.home() / ".config" / "reeldeck" / "ai.json"
-PUBLIK_ON = os.environ.get("REELDECK_PUBLIK", "on").lower() not in ("off", "0", "false")
+# a source checkout has no app token (release builds get one from CI): no gate, own key or claude instead
+PUBLIK_ON = os.environ.get("REELDECK_PUBLIK", "on").lower() not in ("off", "0", "false") \
+    and publik._app_token().startswith("pat_")
 CLAUDE_MODELS = {"fast": "haiku", "balanced": "sonnet", "smart": "opus"}   # CLI aliases
 TIERS = tuple(publik.MODELS)
 
@@ -64,7 +66,7 @@ def configure(body: dict) -> dict:
     if p not in ("publik", "own", "claude"):
         raise ValueError("provider is publik, own or claude")
     if p == "publik" and not PUBLIK_ON:
-        raise ValueError("publik is switched off on this server (REELDECK_PUBLIK=off)")
+        raise ValueError("publik is off on this server (REELDECK_PUBLIK=off, or a build with no publik app token)")
     if p == "claude" and not shutil.which("claude"):
         raise ValueError("the claude CLI isn't installed on this server")
     if p == "own":

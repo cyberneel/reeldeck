@@ -15,3 +15,6 @@ bin/
 demo/
 vo_cpu.py
 .worktrees/
+
+# the publik app token: CI writes it into release builds, never commit it
+publik-app-token.txt
