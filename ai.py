@@ -219,7 +219,7 @@ def chat(messages: list[dict], tier: str = "balanced", max_tokens: int = 1400) -
     body = {"model": publik.MODELS.get(tier, "publik-balanced") if kind == "publik" else model,
             "messages": messages, "max_tokens": max_tokens}
     try:
-        status, b = publik._http("POST", f"{base.rstrip('/')}/chat/completions", body, key=key, timeout=120)
+        status, b = publik._http("POST", f"{base.rstrip('/')}/chat/completions", body, key=key, timeout=240)
     except OSError as e:
         raise AIError("publik is not reachable. Check your connection." if kind == "publik"
                       else f"couldn't reach {base}: {e}") from None
@@ -277,7 +277,7 @@ def parse_json(text: str):
             return json.JSONDecoder().raw_decode(text[start:])[0]
         except ValueError:
             start = text.find("{", start + 1)
-    raise AIError("the AI answered in a shape the Script tab can't read; try again")
+    raise AIError("the AI answered in a shape ReelDeck can't read; try again")
 
 
 def assist(body: dict) -> dict:

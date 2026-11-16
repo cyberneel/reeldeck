@@ -611,6 +611,12 @@ button.icon#ttsBtn.off { text-decoration: line-through; opacity: .5; }
 .aiDraft { border: 1px solid var(--line); border-radius: var(--rad); padding: 10px 12px; max-height: 340px; overflow: auto; background: var(--sunken); font-size: var(--fs-sm); }
 .aiDraft b { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--o); margin: 8px 0 2px; }
 .aiDraft b:first-child { margin-top: 0; }
+.agChange { display: flex; gap: 10px; align-items: flex-start; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--rad); background: var(--panel); font-size: var(--fs-sm); cursor: pointer; }
+.agChange input { margin-top: 3px; flex: none; }
+.agChange > span { min-width: 0; overflow-wrap: anywhere; }
+.agChange small { display: block; color: var(--dim2); font-size: var(--fs-xs); margin-top: 3px; }
+.agChange.bad { opacity: .7; cursor: default; }
+.agChange pre.log { max-height: 260px; overflow: auto; white-space: pre; margin-top: 6px; }
 .aiErr { color: var(--r); font-size: var(--fs-sm); margin-top: var(--s2); }
 .aiEmpty { color: var(--dim2); font-size: var(--fs-sm); text-align: center; padding: var(--s4) var(--s2); border: 1px dashed var(--line); border-radius: var(--rad); }
 .aiTarget { font-size: var(--fs-sm); color: var(--dim); padding: 8px 10px; border-left: 2px solid var(--o); background: var(--sunken); border-radius: 0 var(--rad-sm) var(--rad-sm) 0; margin-bottom: var(--s2); }

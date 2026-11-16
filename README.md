@@ -19,6 +19,11 @@ staying on your computer.
   only what changed.
 - **Clips.** Clips the project can generate from its own templates, plus a
   library of footage you can drop in.
+- **Agent.** Say what the reel needs ("tighten the cut to the voiceover",
+  "make the clips the requests ask for") and it proposes concrete changes:
+  voiceover lines, cuts and trims on the timeline, and new HTML clips built
+  from the project's own templates. Tick the ones you want and apply; **Update**
+  renders them.
 - **Publish.** Exactly what Instagram will receive for each reel, and a queue
   that posts it at a time you pick. Trial reels and "also share to feed" are
   supported. Without a token it is a dry run and nothing leaves your computer.
@@ -87,8 +92,9 @@ Docker is the tested route.
 
 ## AI
 
-The Script tab's assistant is the only part of ReelDeck that talks to an AI.
-Pick where it goes in **AI settings** (the `AI` button, top right):
+The Script tab's assistant and the Agent tab are the only parts of ReelDeck
+that talk to an AI. Pick where they go in **AI settings** (the `AI` button,
+top right):
 
 - **publik.** Release builds open with *Sign in with publik*. Sign in, pick a
   plan, and the assistant runs on it, with no keys to manage. When the plan
@@ -145,7 +151,7 @@ Each module checks itself against fakes, with no network or accounts needed:
 
 ```sh
 python3 pipeline.py demo && python3 publish.py && python3 publish_mcp.py --check \
-  && python3 ai.py && python3 scripts.py && python3 delivery.py && python3 test_takes.py
+  && python3 ai.py && python3 agent.py && python3 scripts.py && python3 delivery.py && python3 test_takes.py
 ```
 
 The frontend is plain ES modules with no build step. Edit and reload.

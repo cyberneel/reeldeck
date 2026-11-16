@@ -28,6 +28,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePath
 from urllib.parse import parse_qs, urlsplit
 
+import agent
 import ai
 import delivery
 import discovery
@@ -564,6 +565,36 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": str(e)}, 400)
         return self._json({"error": "not found"}, 404)
 
+    def _agent(self, pid: str, project: Path, commit: bool):
+        """The Agent tab: propose changes for an ask, or apply the ticked ones.
+        Applying writes reel.json under the same _rev check as a PUT from the
+        editor, so it can't clobber an edit it never saw."""
+        b = self._body()
+        try:
+            if not commit:
+                return self._json(agent.propose(project, pipeline.load(project), str(b.get("ask") or "")))
+            if _job(pid)["running"]:
+                return self._json({"error": "something is rendering — apply after it"}, 409)
+            mf = project / pipeline.MANIFEST
+            rev = round(mf.stat().st_mtime, 3)
+            if b.get("_rev") is not None and abs(b["_rev"] - rev) > 0.002:
+                return self._json({"error": "stale", "rev": rev}, 409)
+            m, files, done, errors = agent.apply(project, pipeline.load(project), b.get("changes") or [])
+            bad = [f"change {i + 1}: {e}" for i, e in enumerate(errors) if e]
+            if bad:
+                return self._json({"error": "; ".join(bad)}, 400)
+            for f, html in files.items():
+                (project / f).write_text(html)
+            pipeline.save(project, m)
+            for rid, f in done.items():
+                discovery.fulfill_request(project, rid, f)
+            return self._json({"ok": True, "rev": round(mf.stat().st_mtime, 3), "wrote": list(files),
+                               "stale": pipeline.stale(project, m)})
+        except ai.AIError as e:
+            return self._json({"error": str(e), "link": e.link}, 502)
+        except (ValueError, TypeError, AttributeError) as e:
+            return self._json({"error": str(e)}, 400)
+
     def _pub(self, fn, *a):
         """A Publish tab / MCP call: bad input is the caller's, a Graph error is Meta's."""
         try:
@@ -776,6 +807,9 @@ class Handler(BaseHTTPRequestHandler):
 
         if rest == "delivery":
             return self._delivery(pid, project)
+
+        if rest in ("agent", "agent/apply"):
+            return self._agent(pid, project, rest == "agent/apply")
 
         if rest == "requests":
             b = self._body()

@@ -20,6 +20,9 @@ export const api = {
   aiSettings: (body) => req("POST", "/api/ai/settings", body),
   aiChooseAgain: () => req("POST", "/api/ai/choose-again", {}),
   assist: (body) => req("POST", "/api/ai/assist", body),
+  // the Agent tab: changes proposed for an ask, then the ticked ones applied
+  agent: (pid, ask) => req("POST", `/api/p/${pid}/agent`, { ask }),
+  agentApply: (pid, changes, rev) => req("POST", `/api/p/${pid}/agent/apply`, { changes, _rev: rev }),
   getScript: (pid) => req("GET", `/api/p/${pid}/script`),
   putScript: (pid, doc) => req("PUT", `/api/p/${pid}/script`, doc),
   snapshotScript: (pid, label) => req("POST", `/api/p/${pid}/script/versions`, { label }),

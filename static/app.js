@@ -8,6 +8,7 @@ import * as timeline from "./timeline.js";
 import * as script from "./script.js";
 import * as voice from "./voice.js";
 import * as clips from "./clips.js";
+import * as agent from "./agent.js";
 import * as publish from "./publish.js";
 import * as comments from "./comments.js";
 
@@ -16,6 +17,7 @@ const TABS = [
   { id: "script", label: "Script", mod: script },
   { id: "voice", label: "Voice", mod: voice },
   { id: "clips", label: "Clips", mod: clips },
+  { id: "agent", label: "Agent", mod: agent },
   { id: "publish", label: "Publish", mod: publish },
   { id: "comments", label: "Comments", mod: comments },
 ];
@@ -34,7 +36,7 @@ function buildShell() {
       <button id="newProjBtn" class="icon" title="New or existing reel">+</button>
       <span class="grow"></span>
       <div id="jobIndicator"><span class="dot"></span><span id="jobText"></span></div>
-      <button id="aiBtn" class="ghost" title="Where the Script tab's AI comes from"><i></i><span>AI</span></button>
+      <button id="aiBtn" class="ghost" title="Where the Script and Agent tabs' AI comes from"><i></i><span>AI</span></button>
       <button id="themeBtn" class="ghost icon"></button>
       <span class="topsep"></span>
       <button id="dropBtn" class="icon" title="Send to a device (Taildrop)" hidden>⇪</button>
