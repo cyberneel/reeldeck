@@ -28,11 +28,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePath
 from urllib.parse import parse_qs, urlsplit
 
+import ai
 import delivery
 import discovery
 import pipeline
 import projects
 import publish
+import scripts
 
 HERE = Path(__file__).resolve().parent
 PORT = int(os.environ.get("REELDECK_PORT", 8810))
@@ -445,6 +447,9 @@ class Handler(BaseHTTPRequestHandler):
         if p.startswith("/static/"):
             return self._file(HERE / p[1:])
 
+        if p == "/api/app":   # the shell's boot call, polled while the sign-in gate is up
+            return self._json({"version": VERSION, "taildrop": bool(shutil.which("tailscale")),
+                               "ai": ai.state(wallet="wallet" in q)})
         if p == "/api/projects":
             # ?detail=1 costs a manifest read and a staleness pass per project;
             # the plain list stays cheap for the switcher that only needs names
@@ -541,6 +546,24 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             return self._json({"error": f"could not measure it: {e}"}, 400)
 
+    def _ai(self, act: str):
+        """Settings → AI, the sign-in gate's buttons, and the Script tab's assistant."""
+        b = self._body()
+        try:
+            if act == "press":
+                return self._json({"url": ai.UI.press(str(b.get("action", "")))})
+            if act == "settings":
+                return self._json(ai.configure(b))
+            if act == "choose-again":
+                return self._json(ai.ask_again())
+            if act == "assist":
+                return self._json(ai.assist(b))
+        except ai.AIError as e:
+            return self._json({"error": str(e), "link": e.link}, 502)
+        except (ValueError, TypeError) as e:
+            return self._json({"error": str(e)}, 400)
+        return self._json({"error": "not found"}, 404)
+
     def _pub(self, fn, *a):
         """A Publish tab / MCP call: bad input is the caller's, a Graph error is Meta's."""
         try:
@@ -601,6 +624,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"rows": delivery.latest(pid)})
         if rest == "discovery":
             return self._json(discovery.discover(project, pipeline.load(project)))
+        if rest == "script":
+            return self._json({"script": scripts.load(project), "versions": scripts.versions(project)})
+        mv = re.match(r"^script/versions/(\w+)$", rest)
+        if mv:
+            try:
+                return self._json({"script": scripts.version(project, mv.group(1))})
+            except KeyError:
+                return self._json({"error": "no such version"}, 404)
         if rest == "taildrop":
             return self._json({"targets": taildrop_targets(),
                                "files": exports(project, pipeline.load(project))})
@@ -627,6 +658,15 @@ class Handler(BaseHTTPRequestHandler):
             # relabel itself as you edit, without polling for it
             return self._json({"ok": True, "rev": round(mf.stat().st_mtime, 3),
                                "stale": pipeline.stale(project, body)})
+        m = re.match(r"^/api/p/([^/]+)/script$", self.path)
+        if m:
+            project = self._proj_or_404(m.group(1))
+            if project is None:
+                return
+            try:
+                return self._json({"ok": True, "script": scripts.save(project, self._body())})
+            except (ValueError, TypeError) as e:
+                return self._json({"error": str(e)}, 400)
         m = re.match(r"^/api/projects/([^/]+)$", self.path)
         if m:
             body = self._body()
@@ -652,6 +692,9 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError, OSError) as e:
                 return self._json({"error": str(e)}, 400)
             return self._json(row)
+
+        if path.startswith("/api/ai/"):
+            return self._ai(path[8:])
 
         if path == "/api/publish/token":   # the tab's paste box; the token is never sent back
             return self._pub(publish.save_token, self._body().get("token", ""))
@@ -703,6 +746,9 @@ class Handler(BaseHTTPRequestHandler):
 
         if rest == "upload":
             return self._upload(pid, project)
+
+        if rest == "script/versions":
+            return self._json(scripts.snapshot(project, self._body().get("label", "")))
 
         if rest == "taildrop":
             b = self._body()
@@ -814,6 +860,7 @@ if __name__ == "__main__":
             projects.register(d)
 
     publish.start()   # the Instagram queue (dry run until there's a token)
+    ai.start_gate()   # Sign in with publik, drawn by the page (REELDECK_PUBLIK=off skips it)
     print(f"reeldeck {VERSION}  ·  {len(projects.list_projects())} project(s) registered", flush=True)
     if HOST:   # Docker / LAN: one explicit bind, e.g. REELDECK_HOST=0.0.0.0
         print(f"  http://{HOST}:{PORT}/", flush=True)
