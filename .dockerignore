@@ -1,0 +1,7 @@
+*
+!*.py
+!*.html
+!VERSION
+!LICENSE
+!static/
+!publik-app-token.txt

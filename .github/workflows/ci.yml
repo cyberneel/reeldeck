@@ -1,0 +1,26 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      # each module checks itself against fakes: no network, no accounts
+      - run: |
+          set -e
+          python3 pipeline.py demo
+          python3 publish.py
+          python3 publish_mcp.py --check
+          python3 delivery.py
+          python3 discovery.py
+          python3 ai.py
+          python3 scripts.py
+          python3 publik.py
+          python3 test_takes.py
+      - run: for f in static/*.js; do node --check "$f"; done
+      - run: docker build -t reeldeck:ci .

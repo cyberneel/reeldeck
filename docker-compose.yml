@@ -1,0 +1,20 @@
+# docker compose up -d   →   http://localhost:8810
+services:
+  reeldeck:
+    image: ghcr.io/cyberneel/reeldeck:latest
+    # build: .            # or build from this checkout instead
+    ports:
+      - "127.0.0.1:8810:8810"   # this computer only; drop 127.0.0.1 to open it to your network
+    volumes:
+      - reeldeck-data:/data
+      # - ./reels:/data/projects   # keep reels in a folder you can see
+    environment:
+      # a TTS server for the Voice tab (optional: you can record your own takes)
+      # REELDECK_TTS_URL: http://host.docker.internal:7860
+      TZ: ${TZ:-UTC}             # scheduled posts go out on this clock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  reeldeck-data:
