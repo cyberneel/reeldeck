@@ -1,12 +1,12 @@
 // The lines page (/master): re-record a reel's voiceover from a phone, one
-// line at a time. Hear the TTS read, read it yourself against the Script tab's
+// line at a time. Hear the TTS read, read it yourself against the Voice tab's
 // pacing bar, hear yourself back, and see how your delivery differs from the
 // TTS's. Every take is also kept in the delivery dataset (delivery.py), so the
 // gap can be studied, and a model tuned on it, later.
 import { api } from "./api.js";
 import { S, subscribe, openProject, renderLine, onToast, toast } from "./store.js";
 import * as REC from "./rec.js";
-import { keepTake, room, bar, tickBar, PAD } from "./script.js";
+import { keepTake, room, bar, tickBar, PAD } from "./voice.js";
 
 const $ = (s) => document.querySelector(s);
 const hear = new Audio();     // one element: iOS lets it play from code once a tap has
@@ -69,6 +69,7 @@ async function load(pid) {
   // before the project: its first draw asks for any take with no row yet
   rows = (await api.deliveries(pid)).rows || {};
   await openProject(pid);
+  if (S.loadError) toast(S.loadError, "error");
   i = Math.min(spot()[pid] ?? 0, Math.max(0, lines().length - 1));
   draw();
 }
@@ -141,7 +142,7 @@ async function measure(j, file) {
   draw();
 }
 
-// ---- record: the Script tab's ●, one line at a time ----
+// ---- record: the Voice tab's ●, one line at a time ----
 function countIn() {
   return new Promise((res, rej) => {
     const step = (n) => {

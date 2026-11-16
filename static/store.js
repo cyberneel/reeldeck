@@ -19,6 +19,7 @@ export const S = {
   job: { running: false, step: "", log: [], result: {}, error: "" },
   sel: null,          // {type:'seg'|'line'|'cue', i}
   loaded: false,
+  loadError: "",      // why the open project couldn't be read
 };
 
 const listeners = new Set();
@@ -36,10 +37,11 @@ let lastWrite = 0;   // when the most recent successful save landed
 export async function openProject(pid) {
   S.pid = pid;
   S.loaded = false;
+  S.loadError = "";
   emit();
   const at = Date.now();
   const d = await api.getProject(pid);
-  if (d.error) { toast(d.error, "error"); return; }
+  if (d.error) { S.loadError = d.error; emit(); return; }   // the shell shows it, with Retry
   applyProjectPayload(d, lastWrite < at);
   S.loaded = true;
   emit();

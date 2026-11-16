@@ -70,7 +70,7 @@ const MIMES = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", 
  * button was clicked: MediaRecorder takes a moment to spin up, and a take that
  * lands late is one you have to nudge back by hand.
  *
- * With no player it is a per-line read (the Script tab): no picture runs, the
+ * With no player it is a per-line read (the Voice tab): no picture runs, the
  * take goes at `at`, and the server trims it to the voice so it starts there.
  *
  * `ready` is a count-in: it runs with the mic already open, so a permission

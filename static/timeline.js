@@ -223,7 +223,7 @@ export function mount(root) {
   window.addEventListener("pointermove", touch(onDragMove));
   window.addEventListener("pointerup", touch(onDragUp));
   window.addEventListener("pointercancel", touch(onDragUp));
-  // scoped to root, not document: the Script tab reuses the same data-t="line"
+  // scoped to root, not document: the Voice tab reuses the same data-t="line"
   // convention for its own inputs, and a document-level delegate would fire
   // twice for the same edit whenever this pane happens to also be mounted
   root.addEventListener("input", onFieldInput);
@@ -499,7 +499,7 @@ function drawTimeline(videoL, voL, cues, targets, total) {
 function drawInspector(videoL) {
   const f = els.fields;
   if (!sel) { els.selKind.textContent = ""; f.className = "hint"; f.textContent = "Click a clip, line, or cue."; return; }
-  // same rule as the Script tab: never rebuild a field mid-keystroke
+  // same rule as the Voice tab: never rebuild a field mid-keystroke
   if (isTyping(f)) return;
   f.className = "";
   const m = S.manifest;

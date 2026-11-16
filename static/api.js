@@ -6,7 +6,8 @@ async function req(method, path, body) {
     opts.headers = { "Content-Type": "application/json" };
     opts.body = JSON.stringify(body);
   }
-  const r = await fetch(path, opts);
+  let r;
+  try { r = await fetch(path, opts); } catch { return { error: "can't reach the ReelDeck server", offline: true }; }
   const ct = r.headers.get("content-type") || "";
   const data = ct.includes("application/json") ? await r.json() : null;
   if (!r.ok && data && !data.error) data.error = `http ${r.status}`;
@@ -14,6 +15,16 @@ async function req(method, path, body) {
 }
 
 export const api = {
+  app: (wallet) => req("GET", "/api/app" + (wallet ? "?wallet=1" : "")),
+  aiPress: (action) => req("POST", "/api/ai/press", { action }),
+  aiSettings: (body) => req("POST", "/api/ai/settings", body),
+  aiChooseAgain: () => req("POST", "/api/ai/choose-again", {}),
+  assist: (body) => req("POST", "/api/ai/assist", body),
+  getScript: (pid) => req("GET", `/api/p/${pid}/script`),
+  putScript: (pid, doc) => req("PUT", `/api/p/${pid}/script`, doc),
+  snapshotScript: (pid, label) => req("POST", `/api/p/${pid}/script/versions`, { label }),
+  scriptVersion: (pid, id) => req("GET", `/api/p/${pid}/script/versions/${id}`),
+
   listProjects: () => req("GET", "/api/projects"),
   browseProjects: () => req("GET", "/api/projects?detail=1"),
   createProject: (name, folder) => req("POST", "/api/projects", { name, folder }),

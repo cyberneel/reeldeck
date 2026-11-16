@@ -1,6 +1,6 @@
-// The Script tab: write the voiceover, one dedicated surface instead of a
+// The Voice tab: voice the script, one dedicated surface instead of a
 // sidebar table. Paste a script and split it into lines, tune each line, render
-// through swaram, and see the same drift numbers the Timeline shows — so you
+// through the TTS server, and see the same drift numbers the Timeline shows — so you
 // can fix pacing here without switching tabs.
 import { api } from "./api.js";
 import { S, subscribe, emit, autosave, renderLine, run, toast } from "./store.js";
@@ -32,11 +32,11 @@ export function mount(root) {
     <div id="tlLayout">
       <div>
         <section>
-          <h2>Paste a script <span class="sub">one sentence per line, blank line = longer pause</span></h2>
-          <textarea id="paste" rows="5" placeholder="One terminal, one agent. Close the tab and it dies with it.
-Claude can be better.
+          <h2>Paste lines <span class="sub">or write them in the Script tab and Send to Voice</span></h2>
+          <textarea id="paste" rows="5" placeholder="One sentence per line.
+A blank line makes a longer pause.
 
-So I built a deck for them."></textarea>
+Like this."></textarea>
           <div class="row" style="margin-top:9px">
             <button id="split">Split into lines</button>
             <span class="hint" style="margin:0">Appends to the table below — it does not replace existing lines.</span>
@@ -71,7 +71,7 @@ So I built a deck for them."></textarea>
             <div class="fld" style="flex:1"><label>temperature</label><input class="num" id="temp"></div>
             <div class="fld" style="flex:1"><label>default seed</label><input class="num" id="seed"></div>
           </div>
-          <div class="fld"><label>swaram server</label><input id="voServer"></div>
+          <div class="fld"><label>TTS server</label><input id="voServer"></div>
           <div class="fld"><label>microphone <span class="sub">this device</span></label><select id="mic"></select></div>
           <div class="row"><button class="mini" id="clean"></button>
             <span class="hint" style="margin:0">Your takes: hiss taken down, the room
