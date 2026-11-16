@@ -6,7 +6,7 @@
 Multiple reels, each its own directory with a reel.json (see projects.py). Every
 project gets: a Clips library (discovered from the project's own files — HTML
 templates, manim scenes, Chrome-capture beats, already-rendered footage), a
-Script tab (swaram voiceover authoring), and a Timeline tab (drag/trim/reorder,
+Script tab (writing, with AI), a Voice tab (TTS and recorded takes), and a Timeline tab (drag/trim/reorder,
 live composited preview, transitions, sfx/music).
 
 Stdlib only. One background job per project (rendering is real CPU/GPU time and
@@ -378,7 +378,7 @@ class Handler(BaseHTTPRequestHandler):
         ctype = {
             ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
             ".mp4": "video/mp4", ".wav": "audio/wav", ".mp3": "audio/mpeg",
-            ".png": "image/png", ".jpg": "image/jpeg", ".json": "application/json",
+            ".png": "image/png", ".jpg": "image/jpeg", ".json": "application/json", ".svg": "image/svg+xml",
         }.get(path.suffix, "application/octet-stream")
         st = path.stat()
         size, etag = st.st_size, f'"{st.st_mtime_ns:x}-{st.st_size:x}"'
